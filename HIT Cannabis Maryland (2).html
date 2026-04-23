@@ -756,7 +756,7 @@ function TopicScreen({ topic, theme, quizMode, notes, onNotesChange, onBack, onN
 }
 
 // ─── HOME SCREEN ──────────────────────────────────────────────────────────
-function HomeScreen({ theme, onSelect, onStudyGuide, progress, notes, onNotesChange }) {
+function HomeScreen({ theme, onSelect, onStudyGuide, onReset, progress, notes, onNotesChange }) {
   const done = TOPICS.filter(t => progress[t.id]).length;
   const [editingInfo, setEditingInfo] = useState(false);
   const [popField, setPopField] = useState(notes.population || '');
@@ -774,10 +774,16 @@ function HomeScreen({ theme, onSelect, onStudyGuide, progress, notes, onNotesCha
               <div style={{height:'100%',width:`${(done/TOPICS.length)*100}%`,background:'white',borderRadius:3,transition:'width 0.4s'}}/>
             </div>
           </div>
-          <button onClick={onStudyGuide} aria-label="View study guide"
-            style={{padding:'7px 13px',borderRadius:10,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.5)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0,minHeight:36}}>
-            📄 Study Guide
-          </button>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
+            <button onClick={onStudyGuide} aria-label="View study guide"
+              style={{padding:'7px 13px',borderRadius:10,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.5)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0,minHeight:36}}>
+              📄 Study Guide
+            </button>
+            <button onClick={onReset} aria-label="Reset saved work"
+              style={{padding:'7px 13px',borderRadius:10,background:'rgba(255,255,255,0.14)',border:'1px solid rgba(255,255,255,0.45)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0,minHeight:36}}>
+              ↺ Reset My Work
+            </button>
+          </div>
         </div>
       </header>
 
@@ -911,6 +917,19 @@ function App() {
     }));
   }, []);
 
+  const handleReset = useCallback(() => {
+    const confirmed = window.confirm(
+      'Are you sure you want to clear your saved work? This will remove your saved notes, topic progress, and quiz results on this device.'
+    );
+
+    if (!confirmed) return;
+
+    localStorage.removeItem('hitmd-v2');
+    setScreen('home');
+    setProgress({});
+    setNotes({});
+  }, []);
+
   const topic = TOPICS.find(t => t.id === screen);
 
   if(screen === 'guide') return (
@@ -930,6 +949,7 @@ function App() {
     <HomeScreen theme={theme}
       onSelect={id => setScreen(id)}
       onStudyGuide={() => setScreen('guide')}
+      onReset={handleReset}
       progress={progress} notes={notes}
       onNotesChange={handleNotesChange}/>
   );

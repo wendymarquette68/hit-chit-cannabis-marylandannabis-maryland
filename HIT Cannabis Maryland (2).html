@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HIT &amp; Healthcare Quality | Maryland</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #dde4ed; font-family: 'DM Sans', sans-serif; }
+  body { display: flex; align-items: center; justify-content: center; padding: 16px; min-height: 100vh; }
+  #root { width: 100%; max-width: 430px; }
+  .skip-link { position: absolute; top: -999px; left: 6px; z-index: 9999; padding: 8px 16px; background: #1a3a5c; color: #fff; font-weight: 600; border-radius: 4px; font-size: 14px; text-decoration: none; font-family: 'DM Sans', sans-serif; }
+  .skip-link:focus { top: 6px; outline: 3px solid #ffbf47; outline-offset: 2px; }
+  button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid #ffbf47; outline-offset: 2px; }
+  textarea { font-family: 'DM Sans', sans-serif; resize: vertical; }
+  #tweaks-panel { position: fixed; bottom: 20px; right: 20px; background: white; border-radius: 14px; padding: 18px; width: 200px; z-index: 1000; box-shadow: 0 8px 32px rgba(0,0,0,0.18); display: none; font-family: 'DM Sans', sans-serif; font-size: 13px; }
+  #tweaks-panel.visible { display: block; }
+  #tweaks-panel h4 { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #5a6575; margin-bottom: 10px; }
+  .tw-row { margin-bottom: 10px; }
+  .tw-row label { display: block; font-size: 12px; color: #374151; margin-bottom: 3px; font-weight: 500; }
+  .tw-row select { width: 100%; padding: 4px 6px; border-radius: 6px; border: 1px solid #d1d5db; font-family: inherit; font-size: 12px; }
+  @media print {
+    body { background: white; padding: 0; }
+    #root { max-width: 100%; }
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
+  }
+</style>
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<div id="root"></div>
+<div id="tweaks-panel" role="complementary" aria-label="Design tweaks" class="no-print">
+  <h4>Tweaks</h4>
+  <div class="tw-row"><label for="tw-theme">Theme</label>
+    <select id="tw-theme" onchange="applyTweak('theme',this.value)">
+      <option value="blue">Clinical Blue</option><option value="teal">Teal</option><option value="slate">Slate</option>
+    </select></div>
+  <div class="tw-row"><label for="tw-quiz">Quizzes</label>
+    <select id="tw-quiz" onchange="applyTweak('quiz',this.value)">
+      <option value="on">On</option><option value="off">Off</option>
+    </select></div>
+</div>
+<script>
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{"theme":"blue","quiz":"on"}/*EDITMODE-END*/;
+let tweaks = {...TWEAK_DEFAULTS};
+function applyTweak(k,v){tweaks[k]=v;window.parent.postMessage({type:'__edit_mode_set_keys',edits:tweaks},'*');if(window._applyTheme)window._applyTheme(tweaks.theme);if(window._setQuiz)window._setQuiz(tweaks.quiz==='on');}
+window.addEventListener('message',e=>{if(e.data?.type==='__activate_edit_mode')document.getElementById('tweaks-panel').classList.add('visible');else if(e.data?.type==='__deactivate_edit_mode')document.getElementById('tweaks-panel').classList.remove('visible');});
+window.parent.postMessage({type:'__edit_mode_available'},'*');
+</script>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const THEMES = {
+  blue:  { primary:'#1e4d7b', light:'#e8f0f8', mid:'#b8cfe8', accent:'#1a7a4a', accentLight:'#e0f2ea', sub:'#c8dcea' },
+  teal:  { primary:'#1a5f6e', light:'#e4f3f5', mid:'#a8d8df', accent:'#2e7d4f', accentLight:'#dff0e8', sub:'#b8dde3' },
+  slate: { primary:'#2d3f55', light:'#eaecf0', mid:'#c4ccd6', accent:'#1a6e52', accentLight:'#dff0ea', sub:'#b8c4d0' },
+};
+
+const IOM_DOMAIN_LIST = [
+  { id:'effective',   label:'Effective',       color:'#1a4fab' },
+  { id:'safe',        label:'Safe',             color:'#b91c1c' },
+  { id:'person',      label:'Person-Centered',  color:'#6d28d9' },
+  { id:'timely',      label:'Timely',           color:'#b45309' },
+  { id:'equitable',   label:'Equitable',        color:'#065f46' },
+  { id:'integrated',  label:'Integrated',       color:'#0e5f7a' },
+  { id:'efficient',   label:'Efficient',        color:'#9d174d' },
+];
+
+// ─── LOAD/SAVE STATE ──────────────────────────────────────────────────────
+function loadState() {
+  try {
+    return JSON.parse(localStorage.getItem('hitmd-v2') || '{}');
+  } catch { return {}; }
+}
+function saveState(s) {
+  localStorage.setItem('hitmd-v2', JSON.stringify(s));
+}
+
+// ─── WRITE PROMPT COMPONENT ──────────────────────────────────────────────
+function WritePrompt({ promptId, heading, rubricPts, where, instructions, placeholder, value, onChange, accentColor }) {
+  return (
+    <section aria-labelledby={`wp-${promptId}`}
+      style={{background:'white',borderRadius:16,padding:'18px',marginTop:14,
+        border:`2px solid ${accentColor}`,boxShadow:'0 2px 10px rgba(0,0,0,0.08)'}}>
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:8,gap:8}}>
+        <h3 id={`wp-${promptId}`} style={{fontSize:12,fontWeight:700,color:accentColor,letterSpacing:'0.06em',textTransform:'uppercase',lineHeight:1.3}}>
+          ✏️ Write Prompt — {heading}
+        </h3>
+        <span style={{fontSize:11,fontWeight:700,color:'white',background:accentColor,borderRadius:20,padding:'2px 9px',flexShrink:0,whiteSpace:'nowrap'}}>{rubricPts} pts</span>
+      </div>
+      <p style={{fontSize:11.5,color:'#6b7280',marginBottom:6}}><em>Goes in: {where}</em></p>
+      <p style={{fontSize:13.5,color:'#111827',lineHeight:1.6,marginBottom:12,fontWeight:500}}>{instructions}</p>
+      <textarea
+        aria-label={`Write prompt: ${heading}`}
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={4}
+        style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1.5px solid #d1d5db',fontSize:13,lineHeight:1.6,color:'#111827',background:'#f9fafb',transition:'border 0.2s'}}
+        onFocus={e=>e.target.style.border='1.5px solid '+accentColor}
+        onBlur={e=>e.target.style.border='1.5px solid #d1d5db'}
+      />
+      {value && value.trim().length > 10 && (
+        <p role="status" style={{fontSize:11.5,color:accentColor,marginTop:6,fontWeight:600}}>✓ Saved to your study guide</p>
+      )}
+    </section>
+  );
+}
+
+// ─── QUIZ ────────────────────────────────────────────────────────────────
+function Quiz({ id, data, theme, savedAnswer, onAnswer }) {
+  const [answer, setAnswer] = useState(savedAnswer || null);
+  const handleAnswer = (opt) => {
+    if(answer) return;
+    setAnswer(opt);
+    onAnswer && onAnswer(opt);
+  };
+  const feedback = answer ? (answer === data.correct
+    ? `✓ Correct. ${data.explanation}`
+    : `✗ Not quite. ${data.explanation}`) : '';
+  return (
+    <section aria-labelledby={`qh-${id}`}
+      style={{background:'white',borderRadius:16,padding:20,marginTop:14,boxShadow:'0 1px 6px rgba(0,0,0,0.07)'}}>
+      <h3 id={`qh-${id}`} style={{fontSize:11,fontWeight:700,color:theme.primary,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>Check Your Understanding</h3>
+      <p style={{fontSize:14,fontWeight:500,color:'#111827',marginBottom:14,lineHeight:1.6}}>{data.q}</p>
+      <div role="group" aria-labelledby={`qh-${id}`}>
+        {data.options.map(opt=>{
+          const sel=answer===opt.id, correct=opt.id===data.correct, done=!!answer;
+          let bg='#f9fafb',border='1.5px solid #d1d5db',color='#111827';
+          if(done&&correct){bg=theme.accentLight;border=`2px solid ${theme.accent}`;color=theme.accent;}
+          else if(done&&sel){bg='#fef2f2';border='2px solid #b91c1c';color='#7f1d1d';}
+          return (
+            <button key={opt.id} onClick={()=>handleAnswer(opt.id)} disabled={!!answer} aria-pressed={sel}
+              style={{display:'block',width:'100%',textAlign:'left',padding:'11px 13px',marginBottom:7,borderRadius:10,background:bg,border,cursor:answer?'default':'pointer',fontSize:13.5,color,fontFamily:'inherit',fontWeight:sel?600:400,transition:'all 0.18s',minHeight:44}}>
+              <span aria-hidden="true" style={{fontWeight:700,marginRight:8}}>{opt.id.toUpperCase()}.</span>{opt.text}
+              {done&&correct&&<span aria-hidden="true" style={{marginLeft:6}}>✓</span>}
+              {done&&sel&&!correct&&<span aria-hidden="true" style={{marginLeft:6}}>✗</span>}
+            </button>
+          );
+        })}
+      </div>
+      <div role="status" aria-live="polite" aria-atomic="true"
+        style={{marginTop:10,padding:'10px 13px',borderRadius:10,background:theme.light,fontSize:13,color:theme.primary,lineHeight:1.6,visibility:answer?'visible':'hidden'}}>
+        {feedback}
+      </div>
+    </section>
+  );
+}
+
+// ─── TOPIC DATA ──────────────────────────────────────────────────────────
+const TOPICS = [
+  {
+    id:'foundations', num:1, title:'HIT Foundations', subtitle:'History & Implementation',
+    color:'#1e4d7b', emoji:'🏛️',
+    quiz:{ q:'What is identified as the most critical — yet least studied — component of successful HIT implementation?', correct:'c',
+      options:[{id:'a',text:'Selecting the right EHR vendor'},{id:'b',text:'Technology infrastructure and hardware'},{id:'c',text:'Institutional and organizational culture'},{id:'d',text:'Federal regulatory compliance'}],
+      explanation:'Culture is the most critical component. The Cedars-Sinai case shows how even a $34M technology investment fails when culture resists change.' }
+  },
+  {
+    id:'federal', num:2, title:'Federal Policy', subtitle:'HITECH, ONC & Meaningful Use',
+    color:'#7c2d12', emoji:'📋',
+    quiz:{ q:'By November 2014, what percentage of eligible professionals had met Stage 2 Meaningful Use requirements?', correct:'b',
+      options:[{id:'a',text:'About 55%'},{id:'b',text:'About 25%'},{id:'c',text:'About 75%'},{id:'d',text:'About 43%'}],
+      explanation:'Only 25.2% of eligible professionals (and 43.1% of eligible hospitals) had met Stage 2 — reflecting the difficulty and complexity of the requirements.' }
+  },
+  {
+    id:'cdss', num:3, title:'CDSS', subtitle:'Clinical Decision Support',
+    color:'#065f46', emoji:'⚕️',
+    quiz:{ q:'A physician receives a drug allergy alert but can click "acknowledge" and proceed anyway. What type of CDSS intervention is this?', correct:'a',
+      options:[{id:'a',text:'Soft stop'},{id:'b',text:'Hard stop'},{id:'c',text:'CPOE block'},{id:'d',text:'Mandatory override'}],
+      explanation:'A soft stop alerts the physician but allows override. A hard stop prevents the action entirely — reserved for highest-risk scenarios.' }
+  },
+  {
+    id:'hie', num:4, title:'HIE & Interoperability', subtitle:'Data Exchange & Standards',
+    color:'#0e5f7a', emoji:'🔗',
+    quiz:{ q:'In the federated HIE model, where does clinical patient data reside?', correct:'b',
+      options:[{id:'a',text:'In one central repository'},{id:'b',text:'At each institution, assembled in real time when requested'},{id:'c',text:'In the RHIO\'s cloud database'},{id:'d',text:'In the National Health Information Network'}],
+      explanation:'The federated model keeps data at each institution. Records are assembled in real time when requested and deleted after use — preserving HIPAA control for each institution.' }
+  },
+  {
+    id:'quality', num:5, title:'Quality Framework', subtitle:'IOM Domains & Organizations',
+    color:'#6d28d9', emoji:'◎',
+    quiz:{ q:'How does the Joint Commission enforce quality standards in hospitals?', correct:'c',
+      options:[{id:'a',text:'Federal law requires hospitals to follow TJC standards'},{id:'b',text:'State licensing boards defer to TJC findings'},{id:'c',text:'TJC accreditation is linked to Medicare and Medicaid reimbursement'},{id:'d',text:'TJC can fine hospitals directly'}],
+      explanation:'TJC has no legal authority — only financial authority. Hospitals that lose accreditation lose CMS reimbursement. That financial link is the enforcement mechanism.' }
+  },
+  {
+    id:'policy', num:6, title:'Policy Gap & Advocacy', subtitle:'Cannabis, Maryland & Your Letter',
+    color:'#991b1b', emoji:'⚖️',
+    quiz:{ q:'A Maryland patient legally buys cannabis Saturday. Monday, their doctor cannot recommend it through an EHR. Primary reason?', correct:'b',
+      options:[{id:'a',text:'Dispensaries are not connected to EHR networks'},{id:'b',text:'Federal drug scheduling governs EHR recommendations regardless of state law'},{id:'c',text:'EHR vendors chose not to include cannabis'},{id:'d',text:'Doctors are not trained to recommend cannabis'}],
+      explanation:'State legalization changed dispensary access. It did not change federal scheduling, which controls what CDSS can alert, EHRs recommend, and insurance covers.' }
+  },
+];
+
+// ─── TOPIC CONTENT ────────────────────────────────────────────────────────
+function TopicContent({ topic, theme, notes, onNotesChange }) {
+  const tc = topic.color;
+  const Card = ({children, style={}}) => <div style={{background:'white',borderRadius:16,padding:'16px 18px',marginTop:14,boxShadow:'0 1px 6px rgba(0,0,0,0.07)',...style}}>{children}</div>;
+  const SH = ({id,children}) => <h3 id={id} style={{fontSize:12,fontWeight:700,color:theme.primary,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>{children}</h3>;
+  const [open, setOpen] = useState({});
+  const tog = (k) => setOpen(p=>({...p,[k]:!p[k]}));
+
+  const AccItem = ({id:k, label, children, icon}) => (
+    <div style={{border:`1.5px solid ${open[k]?tc:'#e5e7eb'}`,borderRadius:12,overflow:'hidden',transition:'border 0.2s',marginBottom:7}}>
+      <button onClick={()=>tog(k)} aria-expanded={!!open[k]} aria-controls={`ac-${k}`}
+        style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'12px 14px',background:open[k]?theme.light:'none',border:'none',cursor:'pointer',fontFamily:'inherit',minHeight:48,textAlign:'left'}}>
+        {icon && <span aria-hidden="true" style={{fontSize:18,flexShrink:0}}>{icon}</span>}
+        {!icon && <span style={{width:8,height:8,borderRadius:'50%',background:tc,flexShrink:0}} aria-hidden="true"/>}
+        <span style={{flex:1,fontWeight:700,fontSize:13.5,color:'#111827'}}>{label}</span>
+        <span aria-hidden="true" style={{fontSize:16,color:'#9ca3af',display:'inline-block',transform:open[k]?'rotate(90deg)':'none',transition:'transform 0.2s'}}>›</span>
+      </button>
+      <div id={`ac-${k}`} hidden={!open[k]} style={{padding:'0 14px 14px',borderTop:'1px solid #e5e7eb'}}>
+        <div style={{paddingTop:10}}>{children}</div>
+      </div>
+    </div>
+  );
+
+  if(topic.id==='foundations') return (<>
+    <Card><SH>What is HIT?</SH>
+      <p style={{fontSize:13.5,color:'#374151',lineHeight:1.65}}>Health Information Technology uses computers and digital systems to improve healthcare quality and reduce costs. U.S. government support dates to the Kennedy Administration in the 1960s. The most significant leap: the 2009 HITECH Act, allocating $36.5 billion for nationwide EHR development.</p>
+    </Card>
+    <Card><SH>Key Legislation Timeline</SH>
+      <ol style={{listStyle:'none'}}>
+        {[{y:'2004',e:'Bush creates ONC by Executive Order'},{y:'2009',e:'ARRA & HITECH Act signed; $36.5B for EHR'},{y:'2015',e:'Meaningful Use simplified; Stage 3 finalized'},{y:'2016',e:'21st Century Cures Act targets information blocking'}].map((item,i,arr)=>(
+          <li key={i} style={{display:'flex',gap:12,paddingBottom:i<arr.length-1?12:0,marginBottom:i<arr.length-1?12:0,borderBottom:i<arr.length-1?'1px solid #e5e7eb':'none'}}>
+            <span style={{background:tc,color:'white',borderRadius:8,padding:'3px 8px',fontSize:12,fontWeight:700,flexShrink:0,height:'fit-content'}}>{item.y}</span>
+            <p style={{fontSize:13.5,color:'#374151',lineHeight:1.55}}>{item.e}</p>
+          </li>
+        ))}
+      </ol>
+    </Card>
+    <Card><SH>3 Components of Successful HIT Implementation</SH>
+      <AccItem id="tech" label="Technology" icon="💻"><p style={{fontSize:13,color:'#374151',lineHeight:1.6}}>Organizations over-focus here. Selecting the "right" EHR is not enough. Technology is the first component but the least determinative.</p></AccItem>
+      <AccItem id="workflow" label="Workflows / Processes" icon="🔄"><p style={{fontSize:13,color:'#374151',lineHeight:1.6}}>Work policies and procedures define how care is delivered. Many critical processes are undocumented — only becoming visible when a new system forces them into the open. Undocumented processes are the root cause of many HIT failures.</p></AccItem>
+      <AccItem id="culture" label="Organizational Culture" icon="🏥"><p style={{fontSize:13,color:'#374151',lineHeight:1.6}}>The most critical and least-studied component. People resist change. Without cultural buy-in, no technology succeeds. Publication bias in HIT literature hides failures and skews the field toward false optimism.</p></AccItem>
+    </Card>
+    <Card style={{border:`1.5px solid ${tc}22`}}><SH>Case Study: Cedars-Sinai (2002)</SH>
+      <blockquote style={{fontSize:13,color:'#374151',lineHeight:1.65,fontStyle:'italic',borderLeft:`3px solid ${tc}`,paddingLeft:12,marginBottom:12}}>Three months after a $34M EHR implementation, hundreds of physicians refused to use the system. A doctor had been prescribing 10× the correct dose for 20 years — nurses silently corrected it every time. The new CPOE system flagged the error. The physician revolted.</blockquote>
+      <div style={{padding:'10px 12px',background:theme.light,borderRadius:10}}>
+        <p style={{fontSize:12.5,fontWeight:700,color:theme.primary,marginBottom:2}}>The lesson:</p>
+        <p style={{fontSize:12.5,color:'#374151',lineHeight:1.55}}>Technology exposed the error. Culture prevented adoption. Process had been invisible for 20 years.</p>
+      </div>
+    </Card>
+    <Card><SH>The Evidence Problem</SH>
+      <p style={{fontSize:13.5,color:'#374151',lineHeight:1.65}}>Despite massive investment, scientific evidence for HIT's impact on quality and cost is, at best, mixed. There is significant publication bias — organizations avoid admitting failures, skewing the literature toward overly optimistic conclusions. The field needs transparent failure reporting.</p>
+    </Card>
+  </>);
+
+  if(topic.id==='federal') return (<>
+    <Card><SH>The ONC</SH>
+      <p style={{fontSize:13.5,color:'#374151',lineHeight:1.65}}>The Office of the National Coordinator for Health IT is "the principal federal entity charged with coordination of nationwide efforts to implement and use the most advanced health information technology." Mission: improve health and reduce costs through IT. FY2015 budget: $60M. CMS provided financial incentives; ONC set the requirements.</p>
+    </Card>
+    <Card><SH>Medicare vs. Medicaid Incentive Programs</SH>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+        {['Medicare','Medicaid'].map((h,i)=><div key={i} style={{background:tc,color:'white',borderRadius:10,padding:'8px 12px',textAlign:'center',fontSize:12,fontWeight:700}}>{h}</div>)}
+      </div>
+      {[['Administered by CMS','Administered by State Medicaid Agency'],['$44,000 max / physician','$63,750 max / physician'],['Must be 90%+ outpatient','Must have 30%+ Medicaid volume'],['Penalties for non-compliance from 2015','No payment reductions for nonparticipants']].map((row,i)=>(
+        <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:6}}>
+          {row.map((cell,j)=><div key={j} style={{background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:8,padding:'8px 10px',fontSize:12,color:'#374151',lineHeight:1.5}}>{cell}</div>)}
+        </div>
+      ))}
+    </Card>
+    <Card><SH>Meaningful Use: 3 Stages</SH>
+      <ol style={{listStyle:'none'}}>
+        {[{l:'Stage 1',d:'Adopt, implement, or upgrade certified EHR. Basic data capture and sharing.'},
+          {l:'Stage 2',d:'E-prescribing (50%+ of Rx), CPOE, patient portal access, care coordination. By Nov 2014: only 25.2% of eligible professionals and 43.1% of eligible hospitals had met Stage 2 requirements.'},
+          {l:'Stage 3',d:'8 objectives (2017+): full interoperability, advanced outcomes reporting, improved quality alignment with CMS programs.'}
+        ].map((item,i,arr)=>(
+          <li key={i} style={{display:'flex',gap:12,paddingBottom:i<arr.length-1?12:0,marginBottom:i<arr.length-1?12:0,borderBottom:i<arr.length-1?'1px solid #e5e7eb':'none'}}>
+            <span style={{width:26,height:26,borderRadius:'50%',background:tc,color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12,flexShrink:0,marginTop:1}}>{i+1}</span>
+            <div><p style={{fontWeight:700,fontSize:13.5,color:'#111827',marginBottom:2}}>{item.l}</p><p style={{fontSize:12.5,color:'#4b5563',lineHeight:1.55}}>{item.d}</p></div>
+          </li>
+        ))}
+      </ol>
+    </Card>
+    <Card><SH>ICD-9 → ICD-10</SH>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+        <div style={{background:theme.light,border:`1.5px solid ${theme.mid}`,borderRadius:12,padding:12}}>
+          <p style={{fontWeight:700,fontSize:13,color:theme.primary,marginBottom:4}}>ICD-9</p>
+          <p style={{fontSize:13,fontWeight:600,color:'#111827',marginBottom:4}}>~13,000 codes</p>
+          <p style={{fontSize:12,color:'#4b5563',lineHeight:1.5}}>No laterality. Only 2 codes for a thumb fracture (open vs. closed).</p>
+        </div>
+        <div style={{background:'#fff7ed',border:'1.5px solid #fed7aa',borderRadius:12,padding:12}}>
+          <p style={{fontWeight:700,fontSize:13,color:'#92400e',marginBottom:4}}>ICD-10</p>
+          <p style={{fontSize:13,fontWeight:600,color:'#111827',marginBottom:4}}>65,000+ codes</p>
+          <p style={{fontSize:12,color:'#4b5563',lineHeight:1.5}}>Specifies left/right, mechanism, episode. Same fracture = dozens of codes.</p>
+        </div>
+      </div>
+      <div style={{padding:'10px 12px',background:'#f0fdf4',borderRadius:10,border:'1px solid #bbf7d0'}}>
+        <p style={{fontSize:12.5,color:'#065f46',lineHeight:1.55}}>Higher ICD-10 specificity enables better quality control and research — but required massive documentation workflow changes for every provider in the U.S.</p>
+      </div>
+    </Card>
+  </>);
+
+  if(topic.id==='cdss') return (<>
+    <Card><SH>What is CDSS?</SH>
+      <p style={{fontSize:13.5,color:'#374151',lineHeight:1.65}}>A Clinical Decision Support System creates a human-computer hybrid. The physician brings expertise, communication, and intuition. The computer brings tireless data recall — it never forgets and never fatigues. Together they outperform either alone. Stead & Hammond showed that the data accessed per medical decision is increasing exponentially while physicians' ability to process it stays constant.</p>
+    </Card>
+    <Card><SH>5 Requirements for CDSS to Work</SH>
+      <ol style={{listStyle:'none',display:'flex',flexDirection:'column',gap:10}}>
+        {[{l:'Right information',d:'Clinically accurate and relevant.'},{l:'Right person',d:'Reaches the clinician with authority to act — not a clerk or non-ordering provider.'},{l:'Right format',d:'Clear enough to be understood and acted on quickly.'},{l:'Right channel',d:'Delivered at the EHR workstation where the clinician is working.'},{l:'Right point in workflow',d:'At CPOE — when the physician\'s mind is on the patient and action is one click away.'}].map((item,i)=>(
+          <li key={i} style={{display:'flex',gap:12}}>
+            <span style={{width:24,height:24,borderRadius:'50%',background:theme.mid,color:theme.primary,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12,flexShrink:0,marginTop:2}}>{i+1}</span>
+            <div><p style={{fontWeight:700,fontSize:13.5,color:'#111827',marginBottom:2}}>{item.l}</p><p style={{fontSize:12.5,color:'#4b5563',lineHeight:1.55}}>{item.d}</p></div>
+          </li>
+        ))}
+      </ol>
+      <div style={{marginTop:12,padding:'10px 12px',background:'#fff7ed',borderRadius:10,border:'1px solid #fed7aa'}}>
+        <p style={{fontSize:12.5,color:'#92400e',lineHeight:1.55}}><strong>If any one of these five is missing, the system will tend to fail. Every requirement is a policy decision upstream.</strong></p>
+      </div>
+    </Card>
+    <Card><SH>Soft Stops vs. Hard Stops</SH>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+        <div style={{background:theme.light,border:`1.5px solid ${theme.mid}`,borderRadius:12,padding:12}}>
+          <p style={{fontWeight:700,fontSize:13,color:theme.primary,marginBottom:4}}>Soft Stop</p>
+          <p style={{fontSize:12,fontWeight:600,color:'#111827',marginBottom:4}}>Advisory alert</p>
+          <p style={{fontSize:12,color:'#4b5563',lineHeight:1.5}}>Physician sees the warning and can override with a click. Example: drug allergy reminder, kidney monitoring alert.</p>
+        </div>
+        <div style={{background:'#fef2f2',border:'1.5px solid #fecaca',borderRadius:12,padding:12}}>
+          <p style={{fontWeight:700,fontSize:13,color:'#991b1b',marginBottom:4}}>Hard Stop</p>
+          <p style={{fontSize:12,fontWeight:600,color:'#111827',marginBottom:4}}>Blocking rule</p>
+          <p style={{fontSize:12,color:'#4b5563',lineHeight:1.5}}>System prevents the order entirely. Example: broad-spectrum antibiotic requiring infectious disease consult first.</p>
+        </div>
+      </div>
+      <p style={{fontSize:12.5,color:'#374151',lineHeight:1.55}}>Too many hard stops cause "alert fatigue" — physicians start dismissing all alerts, including important ones.</p>
+    </Card>
+    <Card><SH>9 AHRQ Success Factors for CDSS</SH>
+      <ul style={{listStyle:'none',display:'flex',flexDirection:'column',gap:7}}>
+        {['Automatic provision of support as part of clinician workflow','Provision at time and location of decision making','Provides a recommendation, not just an assessment','Integrated with charting or order entry system','No need for additional clinician data entry','Promotes action rather than inaction','Justifies advice via research evidence','Local user involvement in CDSS development','Provides results to patients as well as providers'].map((item,i)=>(
+          <li key={i} style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+            <span aria-hidden="true" style={{width:6,height:6,borderRadius:'50%',background:tc,flexShrink:0,marginTop:7}}/>
+            <p style={{fontSize:13,color:'#374151',lineHeight:1.55}}>{item}</p>
+          </li>
+        ))}
+      </ul>
+    </Card>
+    <Card><SH>What the Evidence Shows</SH>
+      {[{s:'Strong',a:'Ordering preventive care and recommended treatments — across academic, VA, and community settings',c:'#065f46',bg:'#ecfdf5'},{s:'Moderate',a:'Appropriate ordering of clinical studies; reduction in patient morbidity and cost of care',c:'#b45309',bg:'#fffbeb'},{s:'Low',a:'Efficiency, length of stay, mortality, quality of life, and adverse event reduction',c:'#6b7280',bg:'#f9fafb'}].map((item,i)=>(
+        <div key={i} style={{display:'flex',gap:10,padding:'10px 12px',background:item.bg,borderRadius:10,marginBottom:8,border:`1px solid ${item.c}33`}}>
+          <span style={{fontSize:11,fontWeight:700,color:item.c,background:`${item.c}18`,padding:'2px 8px',borderRadius:20,flexShrink:0,height:'fit-content',marginTop:1}}>{item.s}</span>
+          <p style={{fontSize:13,color:'#374151',lineHeight:1.55}}>{item.a}</p>
+        </div>
+      ))}
+    </Card>
+  </>);
+
+  if(topic.id==='hie') return (<>
+    <Card><SH>The Siloed Data Problem</SH>
+      <p style={{fontSize:13.5,color:'#374151',lineHeight:1.65}}>Despite 50+ years of effort, patients' health records remain siloed. A patient may see many providers across one city — and each provider often knows nothing about what the others are doing. Unlike air travel or banking, health care has failed to build a common data exchange platform.</p>
+    </Card>
+    <Card><SH>Information Blocking</SH>
+      <p style={{fontSize:13.5,color:'#374151',lineHeight:1.65,marginBottom:10}}>Some EHR vendors actively block information transfer to protect market share. In 2015, the ONC reported to Congress: "some providers and developers are engaging in information blocking." The 21st Century Cures Act created civil monetary penalties for developers who block data exchange.</p>
+      <div style={{padding:'10px 12px',background:'#fef2f2',borderRadius:10,border:'1px solid #fecaca'}}>
+        <p style={{fontSize:12.5,color:'#7f1d1d',lineHeight:1.55}}>HIPAA regulations also create a "chilling effect" — institutions fear liability for data breaches, discouraging sharing even when sharing would benefit patients.</p>
+      </div>
+    </Card>
+    <Card><SH>3 HIE Architecture Models</SH>
+      {[{l:'Centralized',d:'All institutions send copies of clinical data to one central repository. All data in one place and format.',pros:['Comprehensive record in one place','Simpler querying'],cons:['Data may be out of date','Complex HIPAA compliance','Hard to withdraw once data is mixed']},
+        {l:'Federated (Most Common)',d:'Data stays at each institution. A Master Patient Index (MPI) links patient IDs across institutions. Records assembled in real time on request, then deleted.',pros:['Each institution controls its own data','Real-time accuracy','Easy to opt out'],cons:['Requires interface engines at each site','More complex architecture']},
+        {l:'Hybrid',d:'Combination of centralized and federated. Most widely used in practice.',pros:['Flexibility','Balances control and efficiency'],cons:['Highest technical complexity']}
+      ].map((item,i)=>(
+        <AccItem key={i} id={`hie${i}`} label={item.l}>
+          <p style={{fontSize:13,color:'#374151',lineHeight:1.6,marginBottom:8}}>{item.d}</p>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <div style={{background:'#f0fdf4',borderRadius:8,padding:'8px 10px'}}><p style={{fontSize:11,fontWeight:700,color:'#065f46',marginBottom:4}}>ADVANTAGES</p>{item.pros.map((p,j)=><p key={j} style={{fontSize:12,color:'#374151',marginBottom:2}}>+ {p}</p>)}</div>
+            <div style={{background:'#fef2f2',borderRadius:8,padding:'8px 10px'}}><p style={{fontSize:11,fontWeight:700,color:'#991b1b',marginBottom:4}}>CHALLENGES</p>{item.cons.map((c,j)=><p key={j} style={{fontSize:12,color:'#374151',marginBottom:2}}>− {c}</p>)}</div>
+          </div>
+        </AccItem>
+      ))}
+    </Card>
+    <Card><SH>Key Interoperability Standards</SH>
+      {[{n:'LOINC',d:'70,000+ unique codes for lab tests and clinical observations. 419 codes for blood pressure alone. Enables semantic interoperability — ensures data means the same thing at every institution.'},
+        {n:'SNOMED CT',d:'Systematized Nomenclature of Medicine. Best for coding patient problem lists within EHRs. Developed by the College of American Pathologists.'},
+        {n:'UMLS',d:'Unified Medical Language System. National Library of Medicine metathesaurus mapping between 200+ biomedical terminology standards.'}
+      ].map((item,i)=>(
+        <div key={i} style={{display:'flex',gap:12,marginBottom:i<2?12:0,paddingBottom:i<2?12:0,borderBottom:i<2?'1px solid #e5e7eb':'none'}}>
+          <span style={{background:tc,color:'white',borderRadius:8,padding:'3px 8px',fontSize:11,fontWeight:700,flexShrink:0,height:'fit-content',marginTop:2}}>{item.n}</span>
+          <p style={{fontSize:13,color:'#374151',lineHeight:1.55}}>{item.d}</p>
+        </div>
+      ))}
+    </Card>
+    <Card><SH>The Sustainability Challenge</SH>
+      <p style={{fontSize:13.5,color:'#374151',lineHeight:1.65}}>Most operating HIEs are heavily subsidized by federal research grants. RHIOs have not found a sustainable business model without federal support. When funding disappears, low-income, rural, and underserved communities lose HIE access first — the communities that need data sharing most.</p>
+    </Card>
+  </>);
+
+  if(topic.id==='quality') return (<>
+    <Card><SH>Defining Quality</SH>
+      <p style={{fontSize:13.5,color:'#374151',lineHeight:1.65,marginBottom:12}}>WHO: "the degree to which health services for individuals and populations increase the likelihood of desired health outcomes." Quality means different things to different stakeholders.</p>
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {[{l:'Patient',d:'Bedside manner, cleanliness, waiting time. Hard to assess clinical quality directly — aesthetics fill the gap.'},{l:'Payer / Health System',d:'Outcomes (did the condition improve?), readmission rates, cost efficiency. Tied to reimbursement via MACRA and the ACA.'},{l:'Federal Government',d:'Economics. Poor quality wastes resources. Quality data drives policy and funding formulas.'}].map((item,i)=>(
+          <div key={i} style={{padding:'12px 14px',background:theme.light,borderRadius:12,border:`1px solid ${theme.mid}`}}>
+            <p style={{fontWeight:700,fontSize:13.5,color:theme.primary,marginBottom:4}}>{item.l}</p>
+            <p style={{fontSize:13,color:'#374151',lineHeight:1.55}}>{item.d}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
+    <Card><SH>IOM 2001: 7 Quality Domains</SH>
+      <p style={{fontSize:12.5,color:'#4b5563',marginBottom:10,lineHeight:1.5}}>From <em>Crossing the Quality Chasm</em>. Tap each domain to expand.</p>
+      {IOM_DOMAIN_LIST.map((d,i)=>(
+        <AccItem key={i} id={`dom${i}`} label={d.label}>
+          <p style={{fontSize:13,color:'#374151',lineHeight:1.6}}>{[
+            'Care based on best available evidence — not tradition, habit, or anecdote.',
+            'Care that avoids harming patients through the care itself.',
+            'Care tailored to individual patient needs, values, and preferences.',
+            'Minimizes waits and harmful delays for both those who give and receive care.',
+            'Same quality regardless of race, gender, income, geography, or socioeconomic status.',
+            'Care coordinated across providers and levels — creates continuity and enhances safety.',
+            'Minimizes waste of equipment, supplies, ideas, and energy.'
+          ][i]}</p>
+        </AccItem>
+      ))}
+    </Card>
+    <Card><SH>Key Quality Organizations</SH>
+      {[{n:'TJC',f:'The Joint Commission',r:'Accredits hospitals. Accreditation linked to CMS reimbursement — the financial enforcement mechanism. No accreditation = no Medicare/Medicaid payments.'},
+        {n:'DNV-GL',f:'Det Norske Veritas',r:'Norwegian alternative to TJC for CMS-recognized hospital accreditation.'},
+        {n:'NCQA',f:'National Committee for Quality Assurance',r:'Certifies patient-centered medical homes (PCMHs).'},
+        {n:'NQF',f:'National Quality Forum',r:'Sets policy for performance measure reporting.'},
+        {n:'IHI',f:'Institute for Healthcare Improvement',r:'Premier training and certification for patient safety professionals.'},
+        {n:'AHRQ',f:'Agency for Healthcare Research and Quality',r:'Federal agency under HHS. Commissioned the most rigorous CDSS systematic review to date.'},
+        {n:'CARF',f:'Commission on Accreditation of Rehabilitation Facilities',r:'Accreditation for rehabilitation and human services providers.'}
+      ].map((org,i)=>(
+        <AccItem key={i} id={`org${i}`} label={`${org.n} — ${org.f}`}>
+          <p style={{fontSize:13,color:'#374151',lineHeight:1.6}}>{org.r}</p>
+        </AccItem>
+      ))}
+    </Card>
+    {/* WRITE PROMPT 2 */}
+    <WritePrompt
+      promptId="wp2"
+      heading="Quality Domain & Evidence"
+      rubricPts={30}
+      where="Evidence paragraph of your senator letter"
+      instructions={`Name the IOM quality domain most violated for your population. Then write one sentence using a specific number from your peer-reviewed research to prove the violation is real.`}
+      placeholder={`Example: "The equitable domain is most neglected. A 2022 study found that Black women are three times more likely to die from pregnancy-related complications than white women, regardless of income or education level."`}
+      value={notes.wp2}
+      onChange={v => onNotesChange('wp2', v)}
+      accentColor="#6d28d9"
+    />
+    {/* Domain tracker */}
+    <Card style={{border:`1.5px solid ${theme.mid}`}}>
+      <SH>Mark Domains for Your Senator Letter</SH>
+      <p style={{fontSize:12.5,color:'#4b5563',marginBottom:10,lineHeight:1.5}}>Select all IOM domains that apply to your health issue and population.</p>
+      <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+        {IOM_DOMAIN_LIST.map(d=>{
+          const marked = (notes.domains||[]).includes(d.id);
+          return (
+            <button key={d.id}
+              onClick={()=>{
+                const cur = notes.domains||[];
+                const next = marked ? cur.filter(x=>x!==d.id) : [...cur,d.id];
+                onNotesChange('domains', next);
+              }}
+              aria-pressed={marked}
+              style={{padding:'6px 12px',borderRadius:20,border:`1.5px solid ${marked?d.color:'#d1d5db'}`,background:marked?`${d.color}18`:'white',color:marked?d.color:'#374151',fontSize:12.5,fontWeight:marked?700:400,cursor:'pointer',fontFamily:'inherit',transition:'all 0.18s'}}>
+              {marked ? '✓ ' : ''}{d.label}
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+  </>);
+
+  if(topic.id==='policy') return (<>
+    <Card><SH>The Saturday / Monday Gap</SH>
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        <div style={{display:'flex',gap:12,padding:'12px 14px',background:theme.accentLight,borderRadius:12}}>
+          <span aria-hidden="true" style={{fontSize:20}}>🟢</span>
+          <div><p style={{fontWeight:700,fontSize:14,color:theme.accent,marginBottom:3}}>Saturday</p><p style={{fontSize:13,color:'#374151',lineHeight:1.55}}>A Maryland adult (21+) legally purchases cannabis at a licensed dispensary for chronic pain. State law: fully legal since July 2023.</p></div>
+        </div>
+        <div aria-hidden="true" style={{textAlign:'center',fontSize:18,color:'#9ca3af'}}>↓</div>
+        <div style={{display:'flex',gap:12,padding:'12px 14px',background:'#fef2f2',borderRadius:12}}>
+          <span aria-hidden="true" style={{fontSize:20}}>🔴</span>
+          <div><p style={{fontWeight:700,fontSize:14,color:'#991b1b',marginBottom:3}}>Monday</p><p style={{fontSize:13,color:'#374151',lineHeight:1.55}}>That same patient's doctor <strong>cannot</strong> recommend cannabis through an EHR. CDSS won't flag it. Insurance won't cover it.</p></div>
+        </div>
+        <div style={{padding:'10px 12px',background:theme.light,borderRadius:10}}>
+          <p style={{fontSize:12,fontWeight:700,color:theme.primary,marginBottom:3}}>Why?</p>
+          <p style={{fontSize:13,color:'#374151',lineHeight:1.55}}>Federal drug scheduling governs what EHRs can recommend, what CDSS can alert, and what insurance covers. State legalization changed dispensary access. It changed nothing in the clinical technology chain.</p>
+        </div>
+      </div>
+    </Card>
+    {/* WRITE PROMPT 1 */}
+    <WritePrompt
+      promptId="wp1"
+      heading="Technology & Policy Gap"
+      rubricPts={15}
+      where="SDOH Connection paragraph of your senator letter"
+      instructions="Name one specific HIT tool from Chapter 11 and explain why it cannot reach your population right now. Name the policy barrier that is blocking it."
+      placeholder={`Example: "HIE data sharing cannot reach my population because community health centers in their area lack federal HIE funding. EHR alerts for maternal mortality screening are not triggered for uninsured patients because they are not in the system."`}
+      value={notes.wp1}
+      onChange={v => onNotesChange('wp1', v)}
+      accentColor="#991b1b"
+    />
+    <Card><SH>The TJC Accountability Chain</SH>
+      <ol style={{listStyle:'none'}}>
+        {[{l:'TJC Accreditation',d:'The Joint Commission evaluates hospitals on patient safety and quality standards.'},
+          {l:'CMS Reimbursement',d:'No accreditation = no Medicare/Medicaid payments. Money is the enforcement mechanism — not law.'},
+          {l:'Clinical Behavior',d:'Financial incentive drives hospitals to meet quality standards and change clinical practice.'}
+        ].map((item,i,arr)=>(
+          <li key={i}>
+            <div style={{display:'flex',gap:10,padding:'10px 12px',background:theme.light,borderRadius:10,marginBottom:4}}>
+              <span style={{width:24,height:24,borderRadius:'50%',background:tc,color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12,flexShrink:0}}>{i+1}</span>
+              <div><p style={{fontWeight:700,fontSize:13.5,color:'#111827',marginBottom:2}}>{item.l}</p><p style={{fontSize:12.5,color:'#4b5563',lineHeight:1.5}}>{item.d}</p></div>
+            </div>
+            {i<arr.length-1 && <div aria-hidden="true" style={{textAlign:'center',color:'#9ca3af',fontSize:18,margin:'2px 0'}}>↓</div>}
+          </li>
+        ))}
+      </ol>
+      <div style={{marginTop:12,padding:'10px 12px',background:'#fef2f2',borderRadius:10,border:'1px solid #fecaca'}}>
+        <p style={{fontSize:12,fontWeight:700,color:'#991b1b',marginBottom:3}}>Cannabis accountability gap:</p>
+        <p style={{fontSize:12.5,color:'#374151',lineHeight:1.55}}>No quality standard. No accreditation requirement for dispensaries. No reimbursement penalty for providers who ignore cannabis as a treatment option. Without money at stake, the system has no built-in reason to change.</p>
+      </div>
+    </Card>
+    {/* WRITE PROMPT 3 */}
+    <WritePrompt
+      promptId="wp3"
+      heading="Accountability Ask"
+      rubricPts={20}
+      where="Policy Recommendation paragraph of your senator letter"
+      instructions="Write one sentence naming the specific action you are asking your senator to take to create an accountability mechanism for your population. Name what the senator should do, who has authority, and the expected outcome."
+      placeholder={`Example: "I urge you to introduce legislation requiring CMS to tie hospital reimbursement to maternal mortality outcome data disaggregated by race, creating the same financial accountability for racial disparities in maternal care that the Joint Commission creates for general patient safety."`}
+      value={notes.wp3}
+      onChange={v => onNotesChange('wp3', v)}
+      accentColor="#1e4d7b"
+    />
+    <Card><SH>3 HIT Equity Gaps</SH>
+      <ol style={{listStyle:'none',display:'flex',flexDirection:'column',gap:10}}>
+        {[{l:'Coverage exclusions',d:'CDSS never fires for uncovered populations — the system is blind to them at the point of care.'},
+          {l:'Information blocking',d:'Fragmented records mean the ER doctor knows nothing about a patient\'s history or ongoing treatments.'},
+          {l:'HIE funding gaps',d:'When federal funding disappears, underserved communities lose HIE access first.'}
+        ].map((item,i)=>(
+          <li key={i} style={{display:'flex',gap:12}}>
+            <span style={{width:24,height:24,borderRadius:'50%',background:theme.mid,color:theme.primary,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:12,flexShrink:0,marginTop:2}}>{i+1}</span>
+            <div><p style={{fontWeight:700,fontSize:13.5,color:'#111827',marginBottom:2}}>{item.l}</p><p style={{fontSize:12.5,color:'#4b5563',lineHeight:1.55}}>{item.d}</p></div>
+          </li>
+        ))}
+      </ol>
+    </Card>
+  </>);
+
+  return null;
+}
+
+// ─── STUDY GUIDE SCREEN ──────────────────────────────────────────────────
+function StudyGuideScreen({ notes, progress, onBack, theme }) {
+  const completedTopics = TOPICS.filter(t => progress[t.id]);
+  const quizResults = progress;
+  const hasAnyNotes = notes.wp1 || notes.wp2 || notes.wp3 || (notes.domains||[]).length > 0;
+
+  return (
+    <div style={{background:'#edf2f7',borderRadius:24,overflow:'hidden',boxShadow:'0 4px 40px rgba(0,0,0,0.14)',display:'flex',flexDirection:'column',height:'min(calc(100vh - 40px), 760px)',minHeight:520}}>
+      <header style={{background:theme.primary,padding:'16px 18px',flexShrink:0}} className="no-print">
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <button onClick={onBack} aria-label="Back to home"
+            style={{width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,0.2)',border:'none',cursor:'pointer',color:'white',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>←</button>
+          <div style={{flex:1}}>
+            <p style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:theme.sub,marginBottom:1}}>Your Personalized</p>
+            <h2 style={{fontSize:17,fontWeight:700,color:'white'}}>Study Guide &amp; Letter Notes</h2>
+          </div>
+          <button onClick={()=>window.print()} aria-label="Print study guide"
+            style={{padding:'7px 14px',borderRadius:8,background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.4)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',minHeight:36}}>
+            🖨 Print
+          </button>
+        </div>
+      </header>
+
+      <main id="main-content" tabIndex={-1} style={{flex:1,overflowY:'auto',padding:'14px',outline:'none'}}>
+
+        {/* Student info */}
+        <div style={{background:'white',borderRadius:16,padding:'16px 18px',marginBottom:14,boxShadow:'0 1px 6px rgba(0,0,0,0.07)'}}>
+          <h3 style={{fontSize:12,fontWeight:700,color:theme.primary,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>Your Health Advocacy Focus</h3>
+          {notes.population ? (
+            <div style={{padding:'10px 12px',background:theme.light,borderRadius:10}}>
+              <p style={{fontSize:13,fontWeight:600,color:'#111827',marginBottom:2}}>{notes.population}</p>
+              {notes.issue && <p style={{fontSize:13,color:'#4b5563'}}>{notes.issue}</p>}
+            </div>
+          ) : (
+            <p style={{fontSize:13,color:'#9ca3af',fontStyle:'italic'}}>No population entered yet — set it from the home screen.</p>
+          )}
+        </div>
+
+        {/* Senator letter sentences */}
+        <div style={{background:'white',borderRadius:16,padding:'16px 18px',marginBottom:14,boxShadow:'0 1px 6px rgba(0,0,0,0.07)',border:`1.5px solid ${theme.mid}`}}>
+          <h3 style={{fontSize:12,fontWeight:700,color:theme.primary,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:4}}>Senator Letter — Your 3 Sentences</h3>
+          <p style={{fontSize:11.5,color:'#6b7280',marginBottom:12}}>These three items = 65 of 100 rubric points · Due April 28 · 11:59 PM</p>
+          {[
+            { key:'wp1', label:'Write Prompt 1 — Technology & Policy Gap', where:'SDOH Connection paragraph', pts:15, color:'#991b1b' },
+            { key:'wp2', label:'Write Prompt 2 — Quality Domain & Evidence', where:'Evidence paragraph', pts:30, color:'#6d28d9' },
+            { key:'wp3', label:'Write Prompt 3 — Accountability Ask', where:'Policy Recommendation paragraph', pts:20, color:'#1e4d7b' },
+          ].map((item,i) => (
+            <div key={i} style={{marginBottom:i<2?14:0,paddingBottom:i<2?14:0,borderBottom:i<2?'1px solid #e5e7eb':'none'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+                <p style={{fontWeight:700,fontSize:13,color:item.color}}>{item.label}</p>
+                <span style={{fontSize:11,fontWeight:700,color:'white',background:item.color,borderRadius:20,padding:'2px 8px',flexShrink:0,marginLeft:8}}>{item.pts}pts</span>
+              </div>
+              <p style={{fontSize:11,color:'#6b7280',marginBottom:6}}>{item.where}</p>
+              {notes[item.key] ? (
+                <div style={{padding:'10px 12px',background:'#f9fafb',borderRadius:10,border:'1px solid #e5e7eb'}}>
+                  <p style={{fontSize:13.5,color:'#111827',lineHeight:1.65}}>{notes[item.key]}</p>
+                </div>
+              ) : (
+                <p style={{fontSize:13,color:'#9ca3af',fontStyle:'italic',padding:'10px 12px',background:'#f9fafb',borderRadius:10}}>Not written yet — complete Topic {item.key==='wp2'?5:6} to add this.</p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Marked domains */}
+        {(notes.domains||[]).length > 0 && (
+          <div style={{background:'white',borderRadius:16,padding:'16px 18px',marginBottom:14,boxShadow:'0 1px 6px rgba(0,0,0,0.07)'}}>
+            <h3 style={{fontSize:12,fontWeight:700,color:theme.primary,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>Your Marked IOM Domains</h3>
+            <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+              {IOM_DOMAIN_LIST.filter(d=>(notes.domains||[]).includes(d.id)).map(d=>(
+                <span key={d.id} style={{padding:'5px 12px',background:`${d.color}18`,border:`1.5px solid ${d.color}`,borderRadius:20,fontSize:12.5,fontWeight:700,color:d.color}}>{d.label}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Quiz results */}
+        <div style={{background:'white',borderRadius:16,padding:'16px 18px',marginBottom:14,boxShadow:'0 1px 6px rgba(0,0,0,0.07)'}}>
+          <h3 style={{fontSize:12,fontWeight:700,color:theme.primary,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>Quiz Results</h3>
+          <div style={{display:'flex',flexDirection:'column',gap:7}}>
+            {TOPICS.map(t => {
+              const ans = progress[`quiz_${t.id}`];
+              const done = !!progress[t.id];
+              const correct = ans === t.quiz.correct;
+              return (
+                <div key={t.id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:'#f9fafb',borderRadius:10}}>
+                  <span style={{width:8,height:8,borderRadius:'50%',background:done?(correct?'#059669':'#dc2626'):'#d1d5db',flexShrink:0}} aria-hidden="true"/>
+                  <p style={{flex:1,fontSize:13,color:'#374151',fontWeight:500}}>{t.title}</p>
+                  <span style={{fontSize:12,fontWeight:700,color:done?(correct?'#059669':'#dc2626'):'#9ca3af'}}>
+                    {done ? (correct ? '✓ Correct' : '✗ Incorrect') : 'Not taken'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Key concepts reference */}
+        <div style={{background:'white',borderRadius:16,padding:'16px 18px',marginBottom:14,boxShadow:'0 1px 6px rgba(0,0,0,0.07)'}}>
+          <h3 style={{fontSize:12,fontWeight:700,color:theme.primary,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>Quick Reference — Key Concepts</h3>
+          {[
+            { term:'ONC', def:'Principal federal entity coordinating nationwide HIT implementation. Created by Bush (2004), legislated by Obama (2009).' },
+            { term:'HITECH Act', def:'$36.5B for EHR development. Created Medicare/Medicaid EHR Incentive Programs. Part of the 2009 ARRA.' },
+            { term:'Meaningful Use', def:'3-stage program incentivizing EHR adoption. Max: $44K (Medicare), $63,750 (Medicaid) per physician.' },
+            { term:'CDSS', def:'Clinical Decision Support System. 5 requirements: right info, right person, right format, right channel, right workflow point.' },
+            { term:'Soft/Hard Stop', def:'Soft = advisory (physician can override). Hard = blocking (prevents the action entirely).' },
+            { term:'HIE', def:'Health Information Exchange. 3 models: Centralized, Federated (most common), Hybrid.' },
+            { term:'LOINC', def:'70,000+ codes for lab tests and observations. Enables semantic interoperability between EHR systems.' },
+            { term:'TJC mechanism', def:'Accreditation → CMS reimbursement → clinical behavior. Financial, not legal, authority.' },
+            { term:'ICD-9→10', def:'~13,000 codes → 65,000+ codes. Added laterality, specificity. Required massive documentation overhaul.' },
+            { term:'7 IOM Domains', def:'Effective, Safe, Person-Centered, Timely, Equitable, Integrated, Efficient.' },
+          ].map((item,i,arr)=>(
+            <div key={i} style={{display:'flex',gap:10,paddingBottom:i<arr.length-1?10:0,marginBottom:i<arr.length-1?10:0,borderBottom:i<arr.length-1?'1px solid #f3f4f6':'none'}}>
+              <span style={{background:theme.primary,color:'white',borderRadius:6,padding:'2px 7px',fontSize:11,fontWeight:700,flexShrink:0,height:'fit-content',marginTop:2,whiteSpace:'nowrap'}}>{item.term}</span>
+              <p style={{fontSize:12.5,color:'#374151',lineHeight:1.55}}>{item.def}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{padding:'12px 14px',background:theme.light,borderRadius:14,textAlign:'center',border:`1.5px solid ${theme.mid}`}}>
+          <p style={{fontSize:12,color:theme.primary,fontWeight:700,marginBottom:2}}>Senator letter due Monday April 28 · 11:59 PM</p>
+          <p style={{fontSize:11.5,color:'#4b5563'}}>100 points · 20% of final grade</p>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// ─── TOPIC SCREEN ─────────────────────────────────────────────────────────
+function TopicScreen({ topic, theme, quizMode, notes, onNotesChange, onBack, onNavigate, onStudyGuide, onComplete, progress }) {
+  const scrollRef = useRef(null);
+  const isComplete = !!progress[topic.id];
+  useEffect(() => { if(scrollRef.current) scrollRef.current.scrollTop = 0; }, [topic.id]);
+
+  return (
+    <div style={{background:'#edf2f7',borderRadius:24,overflow:'hidden',boxShadow:'0 4px 40px rgba(0,0,0,0.14)',display:'flex',flexDirection:'column',height:'min(calc(100vh - 40px), 760px)',minHeight:520}}>
+      <header style={{background:topic.color,padding:'16px 18px',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
+          <button onClick={onBack} aria-label="Back to home"
+            style={{width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,0.2)',border:'none',cursor:'pointer',color:'white',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>←</button>
+          <div style={{flex:1}}>
+            <p style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:'rgba(255,255,255,0.7)',marginBottom:1}}>Topic {topic.num} of {TOPICS.length}</p>
+            <h2 style={{fontSize:17,fontWeight:700,color:'white',lineHeight:1.2}}>{topic.title}</h2>
+          </div>
+          {isComplete && <span aria-label="Quiz completed" style={{width:26,height:26,borderRadius:'50%',background:'rgba(255,255,255,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'white',flexShrink:0}}>✓</span>}
+        </div>
+        <div style={{height:3,background:'rgba(255,255,255,0.2)',borderRadius:2,overflow:'hidden'}}>
+          <div style={{height:'100%',width:`${(topic.num/TOPICS.length)*100}%`,background:'rgba(255,255,255,0.7)',borderRadius:2}}/>
+        </div>
+      </header>
+      <main id="main-content" ref={scrollRef} tabIndex={-1} style={{flex:1,overflowY:'auto',padding:'4px 14px 20px',outline:'none'}}>
+        <TopicContent topic={topic} theme={theme} notes={notes} onNotesChange={onNotesChange}/>
+        {quizMode && (
+          <Quiz id={topic.id} data={topic.quiz} theme={theme}
+            savedAnswer={progress[`quiz_${topic.id}`]}
+            onAnswer={(ans) => onComplete(topic.id, ans)}
+          />
+        )}
+
+        {/* ── What's Next banner — appears once quiz answered (or always if no quiz) ── */}
+        {(isComplete || progress[`quiz_${topic.id}`] || !quizMode) && (() => {
+          const nextTopic = TOPICS[topic.num]; // num is 1-indexed, so TOPICS[topic.num] = next
+          const isLast = topic.num === TOPICS.length;
+          return (
+            <div role="region" aria-label="Next steps" style={{marginTop:16,background:topic.color,borderRadius:16,padding:'18px 18px 16px',boxShadow:'0 2px 12px rgba(0,0,0,0.12)'}}>
+              <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:'rgba(255,255,255,0.75)',marginBottom:6}}>
+                {isLast ? '🎉 Module complete!' : '✓ Topic complete — what\'s next?'}
+              </p>
+              {!isLast && (
+                <>
+                  <p style={{fontSize:15,fontWeight:700,color:'white',marginBottom:4}}>
+                    Next: Topic {nextTopic.num} — {nextTopic.title}
+                  </p>
+                  <p style={{fontSize:12.5,color:'rgba(255,255,255,0.85)',marginBottom:14,lineHeight:1.5}}>{nextTopic.subtitle}</p>
+                </>
+              )}
+              {isLast && (
+                <p style={{fontSize:13,color:'rgba(255,255,255,0.9)',marginBottom:14,lineHeight:1.5}}>
+                  All 6 topics done. Open your Study Guide to review your senator letter sentences, marked domains, and quiz results — then print it as your study sheet.
+                </p>
+              )}
+              <div style={{display:'flex',gap:8}}>
+                {!isLast && (
+                  <button onClick={() => onNavigate(nextTopic.id)}
+                    style={{flex:1,padding:'12px',borderRadius:12,background:'white',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:700,color:topic.color,minHeight:48,transition:'opacity 0.18s'}}>
+                    {nextTopic.title} →
+                  </button>
+                )}
+                {isLast && (
+                  <button onClick={onStudyGuide}
+                    style={{flex:1,padding:'12px',borderRadius:12,background:'white',border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:700,color:topic.color,minHeight:48}}>
+                    📄 Open Study Guide
+                  </button>
+                )}
+                <button onClick={onBack}
+                  style={{padding:'12px 16px',borderRadius:12,background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.4)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'white',minHeight:48,whiteSpace:'nowrap'}}>
+                  All Topics
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </main>
+    </div>
+  );
+}
+
+// ─── HOME SCREEN ──────────────────────────────────────────────────────────
+function HomeScreen({ theme, onSelect, onStudyGuide, progress, notes, onNotesChange }) {
+  const done = TOPICS.filter(t => progress[t.id]).length;
+  const [editingInfo, setEditingInfo] = useState(false);
+  const [popField, setPopField] = useState(notes.population || '');
+  const [issueField, setIssueField] = useState(notes.issue || '');
+
+  return (
+    <div style={{background:'#edf2f7',borderRadius:24,overflow:'hidden',boxShadow:'0 4px 40px rgba(0,0,0,0.14)',display:'flex',flexDirection:'column',height:'min(calc(100vh - 40px), 760px)',minHeight:520}}>
+      <header style={{background:theme.primary,padding:'20px 20px 16px',flexShrink:0}}>
+        <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:theme.sub,marginBottom:3}}>Healthcare Quality · Maryland · Ch. 11</p>
+        <h1 style={{fontSize:19,fontWeight:700,color:'white',marginBottom:12}}>HIT &amp; Cannabis Policy</h1>
+        <div style={{background:'rgba(255,255,255,0.15)',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:12}}>
+          <div style={{flex:1}}>
+            <p style={{fontSize:11,color:'rgba(255,255,255,0.8)',marginBottom:4}}>Module progress — {done}/{TOPICS.length} topics completed</p>
+            <div style={{height:6,background:'rgba(255,255,255,0.2)',borderRadius:3,overflow:'hidden'}}>
+              <div style={{height:'100%',width:`${(done/TOPICS.length)*100}%`,background:'white',borderRadius:3,transition:'width 0.4s'}}/>
+            </div>
+          </div>
+          <button onClick={onStudyGuide} aria-label="View study guide"
+            style={{padding:'7px 13px',borderRadius:10,background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.5)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0,minHeight:36}}>
+            📄 Study Guide
+          </button>
+        </div>
+      </header>
+
+      <main id="main-content" tabIndex={-1} style={{flex:1,overflowY:'auto',padding:'14px',outline:'none'}}>
+
+        {/* Health issue / population setup */}
+        <div style={{background:'white',borderRadius:16,padding:'14px 16px',marginBottom:14,boxShadow:'0 1px 6px rgba(0,0,0,0.07)',border:`1.5px solid ${editingInfo?theme.primary:theme.mid}`,transition:'border 0.2s'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:editingInfo?10:0}}>
+            <h2 style={{fontSize:12,fontWeight:700,color:theme.primary,letterSpacing:'0.08em',textTransform:'uppercase'}}>Your Advocacy Focus</h2>
+            <button onClick={()=>setEditingInfo(!editingInfo)}
+              style={{fontSize:12,fontWeight:600,color:theme.primary,background:theme.light,border:`1px solid ${theme.mid}`,borderRadius:8,padding:'4px 10px',cursor:'pointer',fontFamily:'inherit',minHeight:30}}>
+              {editingInfo ? 'Save' : (notes.population ? 'Edit' : '+ Add')}
+            </button>
+          </div>
+          {editingInfo ? (
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              <div>
+                <label htmlFor="pop-input" style={{fontSize:12,fontWeight:600,color:'#374151',display:'block',marginBottom:4}}>Your target population</label>
+                <input id="pop-input" type="text" value={popField} onChange={e=>setPopField(e.target.value)}
+                  placeholder="e.g. Black women in Maryland, rural elderly patients..."
+                  style={{width:'100%',padding:'9px 12px',borderRadius:10,border:'1.5px solid #d1d5db',fontSize:13,fontFamily:'inherit',color:'#111827'}}/>
+              </div>
+              <div>
+                <label htmlFor="issue-input" style={{fontSize:12,fontWeight:600,color:'#374151',display:'block',marginBottom:4}}>Your health issue</label>
+                <input id="issue-input" type="text" value={issueField} onChange={e=>setIssueField(e.target.value)}
+                  placeholder="e.g. maternal mortality, cannabis access, mental health..."
+                  style={{width:'100%',padding:'9px 12px',borderRadius:10,border:'1.5px solid #d1d5db',fontSize:13,fontFamily:'inherit',color:'#111827'}}/>
+              </div>
+              <button onClick={()=>{ onNotesChange('population', popField); onNotesChange('issue', issueField); setEditingInfo(false); }}
+                style={{padding:'10px',borderRadius:10,background:theme.primary,color:'white',border:'none',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',minHeight:44}}>
+                Save to Study Guide
+              </button>
+            </div>
+          ) : notes.population ? (
+            <div style={{paddingTop:6}}>
+              <p style={{fontSize:13.5,fontWeight:600,color:'#111827'}}>{notes.population}</p>
+              {notes.issue && <p style={{fontSize:13,color:'#4b5563',marginTop:2}}>{notes.issue}</p>}
+            </div>
+          ) : (
+            <p style={{fontSize:12.5,color:'#9ca3af',paddingTop:6,fontStyle:'italic'}}>Enter your health issue and population to personalize your study guide.</p>
+          )}
+        </div>
+
+        {/* How to use */}
+        <div style={{background:'white',borderRadius:16,padding:'14px 16px',marginBottom:14,boxShadow:'0 1px 6px rgba(0,0,0,0.07)'}}>
+          <h2 style={{fontSize:12,fontWeight:700,color:theme.primary,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>How This Works</h2>
+          <ol style={{listStyle:'none',display:'flex',flexDirection:'column',gap:8}}>
+            {[
+              { n:'1', icon:'🎯', label:'Set your focus', desc:'Enter your health issue and target population above. This personalizes your study guide and senator letter.' },
+              { n:'2', icon:'📖', label:'Work through each topic', desc:'Tap any card below to open a topic. Read the content, then answer the quiz question at the bottom.' },
+              { n:'3', icon:'✏️', label:'Write your letter sentences', desc:'Topics 5 and 6 have write prompts — short text boxes where you draft the key sentences for your senator letter.' },
+              { n:'4', icon:'📄', label:'Get your study guide', desc:'Tap "Study Guide" at any time to see all your notes, quiz results, and letter sentences in one printable page.' },
+            ].map((step,i,arr)=>(
+              <li key={i} style={{display:'flex',gap:12,paddingBottom:i<arr.length-1?8:0,marginBottom:i<arr.length-1?8:0,borderBottom:i<arr.length-1?'1px solid #f3f4f6':'none'}}>
+                <span style={{width:28,height:28,borderRadius:'50%',background:theme.light,border:`1.5px solid ${theme.mid}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0}}>{step.icon}</span>
+                <div>
+                  <p style={{fontWeight:700,fontSize:13,color:'#111827',marginBottom:2}}>{step.label}</p>
+                  <p style={{fontSize:12.5,color:'#4b5563',lineHeight:1.5}}>{step.desc}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <div style={{marginTop:10,padding:'9px 12px',background:theme.accentLight,borderRadius:10,border:`1px solid ${theme.accent}40`}}>
+            <p style={{fontSize:12,color:theme.accent,fontWeight:600}}>💡 Your work saves automatically — you can close and return anytime without losing progress.</p>
+          </div>
+        </div>
+
+        {/* Topic grid */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+          {TOPICS.map(topic => {
+            const isComplete = !!progress[topic.id];
+            const hasWritePrompts = topic.id === 'quality' || topic.id === 'policy';
+            const wpDone = topic.id==='quality' ? !!(notes.wp2) : topic.id==='policy' ? !!(notes.wp1 && notes.wp3) : true;
+            return (
+              <button key={topic.id} onClick={()=>onSelect(topic.id)}
+                style={{background:'white',borderRadius:16,padding:'16px 14px',border:`2px solid ${isComplete?topic.color:'transparent'}`,cursor:'pointer',textAlign:'left',fontFamily:'inherit',boxShadow:'0 1px 6px rgba(0,0,0,0.07)',transition:'all 0.2s',position:'relative',minHeight:110}}>
+                <div style={{width:36,height:36,borderRadius:10,background:`${topic.color}18`,display:'flex',alignItems:'center',justifyContent:'center',marginBottom:10,fontSize:18}} aria-hidden="true">{topic.emoji}</div>
+                <p style={{fontWeight:700,fontSize:13,color:'#111827',marginBottom:3,lineHeight:1.3}}>{topic.title}</p>
+                <p style={{fontSize:11.5,color:'#6b7280',lineHeight:1.4}}>{topic.subtitle}</p>
+                {hasWritePrompts && (
+                  <div style={{position:'absolute',bottom:10,right:10}}>
+                    <span style={{fontSize:10,fontWeight:700,color:wpDone?topic.color:'#9ca3af',background:wpDone?`${topic.color}15`:'#f3f4f6',borderRadius:10,padding:'2px 6px'}}>✏️ {wpDone?'Written':'Write prompt'}</span>
+                  </div>
+                )}
+                {isComplete && !hasWritePrompts && (
+                  <span aria-label="Completed" style={{position:'absolute',top:10,right:10,width:20,height:20,borderRadius:'50%',background:topic.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'white',fontWeight:700}}>✓</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{padding:'12px 14px',background:'white',borderRadius:14,boxShadow:'0 1px 6px rgba(0,0,0,0.06)'}}>
+          <p style={{fontSize:12,fontWeight:700,color:theme.primary,marginBottom:3}}>📅 Senator letter due Monday April 28 · 11:59 PM</p>
+          <p style={{fontSize:12,color:'#4b5563',lineHeight:1.5}}>Work through Topics 5 and 6 last — they contain the write prompts that build your letter directly. Your notes auto-save to the Study Guide.</p>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// ─── APP ROOT ─────────────────────────────────────────────────────────────
+function App() {
+  const [themeName, setThemeName] = useState('blue');
+  const [quizMode, setQuizMode] = useState(true);
+  const [screen, setScreen] = useState(() => {
+    const s = loadState();
+    return s._screen || 'home';
+  });
+  const [progress, setProgress] = useState(() => loadState().progress || {});
+  const [notes, setNotes] = useState(() => loadState().notes || {});
+
+  window._applyTheme = setThemeName;
+  window._setQuiz = setQuizMode;
+  const theme = THEMES[themeName] || THEMES.blue;
+
+  // Persist everything
+  useEffect(() => {
+    saveState({ _screen: screen, progress, notes });
+  }, [screen, progress, notes]);
+
+  const handleNotesChange = useCallback((key, val) => {
+    setNotes(prev => ({ ...prev, [key]: val }));
+  }, []);
+
+  const handleComplete = useCallback((id, quizAnswer) => {
+    setProgress(prev => ({
+      ...prev,
+      [id]: true,
+      [`quiz_${id}`]: quizAnswer,
+    }));
+  }, []);
+
+  const topic = TOPICS.find(t => t.id === screen);
+
+  if(screen === 'guide') return (
+    <StudyGuideScreen notes={notes} progress={progress} theme={theme}
+      onBack={() => setScreen('home')}/>
+  );
+  if(topic) return (
+    <TopicScreen topic={topic} theme={theme} quizMode={quizMode}
+      notes={notes} onNotesChange={handleNotesChange}
+      onBack={() => setScreen('home')}
+      onNavigate={id => setScreen(id)}
+      onStudyGuide={() => setScreen('guide')}
+      onComplete={handleComplete}
+      progress={progress}/>
+  );
+  return (
+    <HomeScreen theme={theme}
+      onSelect={id => setScreen(id)}
+      onStudyGuide={() => setScreen('guide')}
+      progress={progress} notes={notes}
+      onNotesChange={handleNotesChange}/>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
